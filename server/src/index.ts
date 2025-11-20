@@ -4,9 +4,21 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { pool } from "./db";
 
+import { detectionRouter } from "./detection";
+// ...other imports (auth, events, etc.)
+import {
+  // …your existing exports,
+  listDeviceMacSummaries,
+  listDetectionsForMac,
+} from "./detection";
+
+
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(detectionRouter);
+
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
 
@@ -32,6 +44,14 @@ function requireJwt(
     return { ok: false };
   }
 }
+
+function authMiddleware(req: any, res: any, next: any) {
+  const auth = requireJwt(req, res);
+  if (!auth.ok) return;          // requireJwt already sent 401 response
+  (req as any).user = auth.payload; // optional: attach payload for later
+  next();
+}
+
 
 // ========= Auth (profiles) =========
 const TABLE = "profiles";
@@ -91,6 +111,12 @@ app.get("/me", async (req, res) => {
 });
 
 // ========= EVENTS =========
+// Device MAC summaries (unique MACs + counts)
+app.get("/device-macs", authMiddleware, listDeviceMacSummaries);
+
+// Detections for a single MAC
+app.get("/devices/:mac/detections", authMiddleware, listDetectionsForMac);
+
 // GET /events?limit=100
 app.get("/events", async (req, res) => {
   const auth = requireJwt(req, res);
